@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'shared/**'
+  schedule:
+    - cron: '0 9 * * 1' # Monday 9 AM UTC
   workflow_dispatch:
 
 permissions:
