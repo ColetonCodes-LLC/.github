@@ -1,0 +1,127 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  claude-review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
+          prompt: |
+            You are reviewing PR #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+
+            Read CLAUDE.md and .claude/rules/ first for project standards. Then read the
+            PR description. For incremental reviews, read the new commit messages for
+            context on what was changed or fixed.
+
+            ## Incremental Review
+
+            Before doing a full review, check if you have previously reviewed this PR:
+            1. Use `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews`
+               to find any prior reviews you submitted.
+            2. If a prior review exists, find the commit SHA it was submitted against
+               (look for "Last reviewed commit:" in the review body).
+            3. If found, only review the diff since that commit:
+               `git diff <last-reviewed-commit>..${{ github.event.pull_request.head.sha }}`
+               Focus on whether the new changes address your previous feedback and
+               whether they introduce new issues. Do NOT re-review unchanged code.
+            4. If no prior review exists, review the full PR diff against the base branch.
+
+            ## Context-Aware Review
+
+            Before reviewing, classify what this PR touches (code, config, docs, or mixed).
+            Apply each checklist section with depth proportional to relevance. A docs-only
+            PR needs accuracy and style checks, not test coverage or security review.
+            A code PR touching auth needs deep security review. Use judgment.
+
+            ### Changelog
+            Code PRs that add features, fix bugs, or change behavior should update
+            CHANGELOG.md. Config, docs, and chore PRs do not need one. If a code PR
+            is missing a changelog entry, flag it as [blocking].
+
+            ### 1. Spec Compliance
+            - Does a spec exist for this feature? If so, does the implementation match?
+            - List any gaps between spec and implementation.
+            - Were spec-required behaviors omitted or changed?
+
+            ### 2. Architecture Fitness
+            - Does this fit existing codebase patterns?
+            - Are new abstractions justified or premature?
+            - Could this be simpler?
+            - Would a maintainer recognize this as fitting?
+
+            ### 3. Bugs & Correctness
+            - Race conditions, null safety, off-by-one errors
+            - Missing error handling at system boundaries
+            - State mutations that could cause inconsistency
+            - Edge cases in business logic
+
+            ### 4. Security (OWASP Top 10)
+            - Injection vulnerabilities (SQL, command, XSS)
+            - Auth/authz bypass potential
+            - Sensitive data exposure
+            - Hardcoded secrets or credentials
+            - Input validation at trust boundaries
+
+            ### 5. Testing
+            - Do tests exist for new behavior?
+            - Are edge cases covered?
+            - Do tests define behavior (TDD) or just verify implementation?
+            - Are tests testing the contract, not implementation details?
+
+            ### 6. AI Slop Detection (.claude/rules/anti-slop.md)
+            - Unnecessary comments or docstrings on obvious code
+            - Over-abstraction for single use cases
+            - Smart quotes, em dashes, or other banned Unicode
+            - Features or error handling beyond what was asked
+            - Generic AI-sounding language in comments or docs
+
+            ## How to Review
+
+            Use inline review comments on specific lines for actionable issues.
+            Be direct -- no filler, no praise sandwiches.
+            Severity levels: [blocking], [suggestion], [nit].
+
+            ## Final Verdict
+
+            After reviewing, submit a GitHub PR review with your decision:
+            - If there are [blocking] issues: use `gh api` to submit a review with
+              event "REQUEST_CHANGES" and a summary of what must be fixed.
+            - If there are only [suggestion] or [nit] issues, or no issues:
+              use `gh api` to submit a review with event "APPROVE" and a brief summary.
+
+            IMPORTANT: Always end your review body with this line so future
+            incremental reviews know where to start:
+              Last reviewed commit: ${{ github.event.pull_request.head.sha }}
+
+            Submit the review using:
+            gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
+              -f event="APPROVE" -f body="summary here"
+            or event="REQUEST_CHANGES" as appropriate.
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Read,Glob,Grep"

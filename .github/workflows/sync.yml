@@ -1,0 +1,125 @@
+name: Sync Shared Config
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'shared/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout .github repo
+        uses: actions/checkout@v4
+
+      - name: Sync to target repos
+        env:
+          GH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          ORG="ColetonCodes-LLC"
+          SHARED_DIR="shared"
+          NEW_VERSION=$(cat "$SHARED_DIR/VERSION")
+
+          # Define target repos and their default branches
+          declare -A TARGETS=(
+            [paperclip]=main
+            [autotube]=main
+            [family-quest]=main
+            [pro-act]=master
+            [pro-act-website]=main
+            [PrioriPlanner]=main
+            [TCATemplate]=master
+            [coletoncodes-website]=main
+            [family-quest-web]=main
+            [flutter-template]=master
+          )
+
+          # File mappings: source -> destination
+          # shared/workflows/*.yml -> .github/workflows/
+          # shared/rules/*.md -> .claude/rules/
+          # shared/skills/** -> .claude/skills/
+
+          push_file() {
+            local repo=$1 branch=$2 dest_path=$3 local_file=$4
+            local content
+            content=$(base64 -i "$local_file")
+
+            # Try to get existing file SHA
+            local sha
+            sha=$(gh api "repos/$ORG/$repo/contents/$dest_path" \
+              --jq '.sha' -H "Accept: application/vnd.github+json" 2>/dev/null || echo "")
+
+            local args=(-X PUT \
+              -f "message=chore: sync shared config (v${NEW_VERSION})" \
+              -f "content=$content" \
+              -f "branch=$branch")
+
+            if [ -n "$sha" ]; then
+              args+=(-f "sha=$sha")
+            fi
+
+            gh api "repos/$ORG/$repo/contents/$dest_path" "${args[@]}" \
+              -H "Accept: application/vnd.github+json" --silent 2>&1 || \
+              echo "  WARN: failed to push $dest_path to $repo"
+          }
+
+          for repo in "${!TARGETS[@]}"; do
+            branch="${TARGETS[$repo]}"
+            echo "=== Syncing $repo ($branch) ==="
+
+            # Check current version in target repo
+            current_version=$(gh api "repos/$ORG/$repo/contents/.claude/.shared-version" \
+              --jq '.content' -H "Accept: application/vnd.github+json" 2>/dev/null | \
+              base64 -d 2>/dev/null || echo "0")
+            current_version=$(echo "$current_version" | tr -d '[:space:]')
+
+            if [ "$current_version" = "$NEW_VERSION" ]; then
+              echo "  Already at v${NEW_VERSION}, skipping"
+              continue
+            fi
+
+            # Sync workflow files (skip paperclip -- it's the canonical source)
+            if [ "$repo" != "paperclip" ]; then
+              for f in "$SHARED_DIR"/workflows/*.yml; do
+                [ -f "$f" ] || continue
+                fname=$(basename "$f")
+                echo "  -> .github/workflows/$fname"
+                push_file "$repo" "$branch" ".github/workflows/$fname" "$f"
+              done
+            fi
+
+            # Sync rule files
+            for f in "$SHARED_DIR"/rules/*.md; do
+              [ -f "$f" ] || continue
+              fname=$(basename "$f")
+              echo "  -> .claude/rules/$fname"
+              push_file "$repo" "$branch" ".claude/rules/$fname" "$f"
+            done
+
+            # Sync skill files
+            if [ -d "$SHARED_DIR/skills" ]; then
+              find "$SHARED_DIR/skills" -type f | while read -r f; do
+                rel_path="${f#$SHARED_DIR/skills/}"
+                echo "  -> .claude/skills/$rel_path"
+                push_file "$repo" "$branch" ".claude/skills/$rel_path" "$f"
+              done
+            fi
+
+            # Update version marker
+            echo "$NEW_VERSION" > /tmp/version_file
+            echo "  -> .claude/.shared-version"
+            push_file "$repo" "$branch" ".claude/.shared-version" "/tmp/version_file"
+
+            echo "  Done"
+            echo
+          done
+
+          echo "Sync complete (v${NEW_VERSION})"
