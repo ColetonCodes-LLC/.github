@@ -20,6 +20,11 @@ jobs:
         with:
           path: source
 
+      - name: Configure git
+        run: |
+          git config --global user.name "ColetonCodes-LLC"
+          git config --global user.email "noreply@coletoncodes.com"
+
       - name: Sync to target repos
         env:
           GH_TOKEN: ${{ secrets.ORG_SYNC_TOKEN }}
