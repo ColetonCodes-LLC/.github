@@ -66,7 +66,7 @@ jobs:
 
             # Check current version
             current_version=$(gh api "repos/$ORG/$repo/contents/.claude/.shared-version" \
-              --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "0")
+              --jq '.content' 2>&1 | base64 -d 2>&1 || echo "0")
             current_version=$(echo "$current_version" | tr -d '[:space:]')
 
             if [ "$current_version" = "$NEW_VERSION" ]; then
@@ -75,7 +75,7 @@ jobs:
             fi
 
             # Check if PR already exists
-            existing_pr=$(gh pr list --repo "$ORG/$repo" --head "$BRANCH_NAME" --json number --jq '.[0].number' 2>/dev/null || echo "")
+            existing_pr=$(gh pr list --repo "$ORG/$repo" --head "$BRANCH_NAME" --json number --jq '.[0].number' 2>&1 || echo "")
             if [ -n "$existing_pr" ]; then
               echo "  PR #$existing_pr already open, skipping"
               continue
@@ -83,7 +83,7 @@ jobs:
 
             # Clone target repo
             WORK_DIR=$(mktemp -d)
-            gh repo clone "$ORG/$repo" "$WORK_DIR" -- --depth=1 -b "$default_branch" 2>/dev/null
+            gh repo clone "$ORG/$repo" "$WORK_DIR" -- --depth=1 -b "$default_branch"
 
             cd "$WORK_DIR"
             git checkout -b "$BRANCH_NAME"
@@ -128,7 +128,7 @@ jobs:
             # Commit and push
             git add -A
             git commit -m "chore: sync shared config (v${NEW_VERSION})"
-            git push origin "$BRANCH_NAME" 2>/dev/null
+            git push origin "$BRANCH_NAME" 2>&1
 
             # Create PR
             PR_URL=$(gh pr create \
@@ -136,7 +136,7 @@ jobs:
               --base "$default_branch" \
               --head "$BRANCH_NAME" \
               --title "chore: sync shared config v${NEW_VERSION}" \
-              --body "$PR_BODY" 2>/dev/null)
+              --body "$PR_BODY" 2>&1)
 
             echo "  PR created: $PR_URL"
 
