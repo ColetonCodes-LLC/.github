@@ -44,6 +44,17 @@ jobs:
             [flutter-template]=master
           )
 
+          PR_BODY="Automated sync from [ColetonCodes-LLC/.github](https://github.com/ColetonCodes-LLC/.github).
+
+          **Updated shared files:**
+          - Workflows (claude.yml, claude-code-review.yml)
+          - Rules (architecture, anti-slop, tdd, commits, pull-requests, security, agents)
+          - Skills (create-pr)
+
+          **Version:** v${NEW_VERSION}
+
+          Review the diff to ensure no local customizations are overwritten."
+
           for repo in "${!TARGETS[@]}"; do
             default_branch="${TARGETS[$repo]}"
             echo "=== $repo ($default_branch) ==="
@@ -58,41 +69,37 @@ jobs:
               continue
             fi
 
-            # Check if PR branch or open PR already exists
+            # Check if PR already exists
             existing_pr=$(gh pr list --repo "$ORG/$repo" --head "$BRANCH_NAME" --json number --jq '.[0].number' 2>/dev/null || echo "")
             if [ -n "$existing_pr" ]; then
               echo "  PR #$existing_pr already open, skipping"
               continue
             fi
 
-            # Clone the target repo
+            # Clone target repo
             WORK_DIR=$(mktemp -d)
             gh repo clone "$ORG/$repo" "$WORK_DIR" -- --depth=1 -b "$default_branch" 2>/dev/null
 
             cd "$WORK_DIR"
             git checkout -b "$BRANCH_NAME"
 
-            changes=false
-
             # Sync workflow files (skip paperclip -- canonical source)
             if [ "$repo" != "paperclip" ]; then
               mkdir -p .github/workflows
               for f in "$SHARED_DIR"/workflows/*.yml; do
                 [ -f "$f" ] || continue
-                fname=$(basename "$f")
-                cp "$f" ".github/workflows/$fname"
+                cp "$f" ".github/workflows/$(basename "$f")"
               done
             fi
 
-            # Sync rule files (additive -- only update shared rules, don't touch repo-specific ones)
+            # Sync rule files
             mkdir -p .claude/rules
             for f in "$SHARED_DIR"/rules/*.md; do
               [ -f "$f" ] || continue
-              fname=$(basename "$f")
-              cp "$f" ".claude/rules/$fname"
+              cp "$f" ".claude/rules/$(basename "$f")"
             done
 
-            # Sync skill files (additive -- only update shared skills)
+            # Sync skill files
             if [ -d "$SHARED_DIR/skills" ]; then
               find "$SHARED_DIR/skills" -type f | while read -r f; do
                 rel_path="${f#$SHARED_DIR/skills/}"
@@ -124,19 +131,7 @@ jobs:
               --base "$default_branch" \
               --head "$BRANCH_NAME" \
               --title "chore: sync shared config v${NEW_VERSION}" \
-              --body "$(cat <<EOF
-Automated sync from [ColetonCodes-LLC/.github](https://github.com/ColetonCodes-LLC/.github).
-
-**Updated shared files:**
-- Workflows (claude.yml, claude-code-review.yml)
-- Rules (architecture, anti-slop, tdd, commits, pull-requests, security, agents)
-- Skills (create-pr)
-
-**Version:** v${NEW_VERSION}
-
-Review the diff to ensure no local customizations are overwritten. Repo-specific rules/skills in \`.claude/\` that aren't in the shared set are untouched.
-EOF
-)" 2>/dev/null)
+              --body "$PR_BODY" 2>/dev/null)
 
             echo "  PR created: $PR_URL"
 
