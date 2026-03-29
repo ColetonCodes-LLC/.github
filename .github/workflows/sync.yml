@@ -27,7 +27,7 @@ jobs:
           GH_TOKEN: ${{ secrets.ORG_SYNC_TOKEN }}
         run: |
           git config --global user.name "ColetonCodes-LLC"
-          git config --global user.email "noreply@coletoncodes.com"
+          git config --global user.email "coletoncodes@gmail.com"
           git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Sync to target repos
