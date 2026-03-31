@@ -1,0 +1,30 @@
+name: Paperclip PR Review Notify
+
+# Synced to all repos via ColetonCodes-LLC/.github
+# Only fires when:
+#   1. The repo has PAPERCLIP_COMPANY_ID variable set (opt-in)
+#   2. The PR branch contains a Paperclip identifier (e.g. FAM-20)
+#   3. The identifier resolves to a real Paperclip issue
+# Safe to be in every repo -- silently skips when not configured.
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  notify:
+    if: vars.PAPERCLIP_COMPANY_ID != ''
+    uses: ColetonCodes-LLC/mobile-ci/.github/workflows/paperclip-notify.yml@v1
+    with:
+      company_id: ${{ vars.PAPERCLIP_COMPANY_ID }}
+      event_type: "pr_review"
+      pr_number: ${{ github.event.pull_request.number }}
+      pr_title: ${{ github.event.pull_request.title }}
+      pr_url: ${{ github.event.pull_request.html_url }}
+      pr_branch: ${{ github.head_ref }}
+      review_state: ${{ github.event.review.state }}
+      reviewer: ${{ github.event.review.user.login }}
+      detail: ${{ github.event.review.body }}
+      runner: '["self-hosted"]'
+    secrets:
+      PAPERCLIP_API_KEY: ${{ secrets.PAPERCLIP_API_KEY }}
