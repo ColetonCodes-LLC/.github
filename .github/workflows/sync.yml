@@ -52,6 +52,7 @@ jobs:
             [coletoncodes-website]=main
             [family-quest-web]=main
             [flutter-template]=master
+            [appgrowthco]=main
           )
 
           PR_BODY="Automated sync from [ColetonCodes-LLC/.github](https://github.com/ColetonCodes-LLC/.github).
