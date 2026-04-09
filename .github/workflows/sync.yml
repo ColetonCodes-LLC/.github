@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
 
           ORG="ColetonCodes-LLC"
-          SHARED_DIR="source/shared"
+          SHARED_DIR="$(pwd)/source/shared"
           NEW_VERSION=$(cat "$SHARED_DIR/VERSION")
           BRANCH_NAME="chore/sync-shared-config-v${NEW_VERSION}"
 
