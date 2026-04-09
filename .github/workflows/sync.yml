@@ -134,7 +134,7 @@ jobs:
             # Commit and push
             git add -A
             git commit -m "chore: sync shared config (v${NEW_VERSION})"
-            git push origin "$BRANCH_NAME" 2>&1
+            git push origin "$BRANCH_NAME" --force 2>&1
 
             # Create PR
             PR_URL=$(gh pr create \
