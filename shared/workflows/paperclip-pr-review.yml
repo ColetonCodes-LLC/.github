@@ -21,7 +21,7 @@ jobs:
       pr_number: ${{ github.event.pull_request.number }}
       pr_title: ${{ github.event.pull_request.title }}
       pr_url: ${{ github.event.pull_request.html_url }}
-      pr_branch: ${{ github.head_ref }}
+      pr_branch: ${{ github.event.pull_request.head.ref }}
       review_state: ${{ github.event.review.state }}
       reviewer: ${{ github.event.review.user.login }}
       detail: ${{ github.event.review.body }}
