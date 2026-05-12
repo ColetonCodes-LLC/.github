@@ -43,6 +43,7 @@ jobs:
 
           declare -A TARGETS=(
             [paperclip]=main
+            [aurora]=main
             [autotube]=main
             [family-quest]=main
             [pro-act]=master
