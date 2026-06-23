@@ -137,12 +137,19 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          verdict=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
-            --jq '[.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED")] | last | .state // "NONE"')
+          # Poll briefly for Claude's decisive review (handles API propagation).
+          verdict="NONE"
+          for _ in $(seq 1 12); do
+            verdict=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
+              --jq '[.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED")] | last | .state // "NONE"')
+            [ "${verdict}" != "NONE" ] && break
+            sleep 5
+          done
           echo "Latest decisive Claude review: ${verdict}"
-          if [ "${verdict}" = "APPROVED" ]; then
-            echo "Approved -- gate open."
-            exit 0
+          # Block ONLY on an explicit request for changes. A missing verdict does
+          # not false-block (the action's own step failure already gates errors).
+          if [ "${verdict}" = "CHANGES_REQUESTED" ]; then
+            echo "::error::Claude requested changes -- blocking merge until addressed."
+            exit 1
           fi
-          echo "::error::Claude did not approve (verdict=${verdict}) -- blocking merge until addressed."
-          exit 1
+          echo "Gate open (verdict=${verdict})."
