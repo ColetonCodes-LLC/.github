@@ -125,3 +125,24 @@ jobs:
 
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Read,Glob,Grep"
+
+      # Turn the review into a real merge gate: the check passes only when
+      # Claude's latest decisive review is APPROVED. CHANGES_REQUESTED (or no
+      # decisive verdict) fails the check and blocks the merge.
+      - name: Enforce review verdict
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          verdict=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
+            --jq '[.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED")] | last | .state // "NONE"')
+          echo "Latest decisive Claude review: ${verdict}"
+          if [ "${verdict}" = "APPROVED" ]; then
+            echo "Approved -- gate open."
+            exit 0
+          fi
+          echo "::error::Claude did not approve (verdict=${verdict}) -- blocking merge until addressed."
+          exit 1
