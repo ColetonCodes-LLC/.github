@@ -41,20 +41,25 @@ jobs:
           NEW_VERSION=$(cat "$SHARED_DIR/VERSION")
           BRANCH_NAME="chore/sync-shared-config-v${NEW_VERSION}"
 
+          # Live projects only. This list had drifted badly: it still targeted
+          # pro-act and pro-act-website (both archived) while missing intent,
+          # proact and ignition entirely -- so the three repos under active
+          # development never received shared config at all.
+          #
+          # Deliberately NOT a list of every repo in the org. Dead and dormant
+          # projects do not need a review gate, and adding them just makes this
+          # array rot again.
+          #
+          # This array is temporary. Once the Ignition repo-shell capability owns
+          # claude-code-review.yml, membership is determined by whether a repo has
+          # an ignition.toml -- no central list to maintain. See INF-4.
           declare -A TARGETS=(
-            [paperclip]=main
-            [aurora]=main
-            [autotube]=main
-            [family-quest]=main
-            [pro-act]=master
-            [pro-act-website]=main
-            [PrioriPlanner]=main
-            [TCATemplate]=master
-            [coletoncodes-website]=main
-            [family-quest-web]=main
-            [flutter-template]=master
-            [appgrowthco]=main
-            [content-os]=main
+            [intent]=main
+            [proact]=main
+            # ignition is tooling rather than an app, but the org ruleset requires
+            # a claude-review status check on every repo's default branch, so
+            # without this workflow it cannot merge a PR at all.
+            [ignition]=main
           )
 
           PR_BODY="Automated sync from [ColetonCodes-LLC/.github](https://github.com/ColetonCodes-LLC/.github).
